@@ -537,34 +537,31 @@ async function importAllData(file) {
         showNotification('导入失败：' + msg, 'error', 5000);
     }
 }
-// ================= 滑动返回拦截 =================
-// 作用：滑动返回时只关闭当前弹窗，不直接退出网页
+// ================= 滑动返回拦截（终极防退版） =================
 (function() {
-    'use strict';
+    // 页面一加载就推入一个历史状态，防止一划就退到底
+    history.pushState({ page: 'main' }, '');
 
-    // 记录打开弹窗的历史状态
-    const _originalShowModal = window.showModal;
-    window.showModal = function(el) {
-        if (_originalShowModal) _originalShowModal(el);
-        // 排除每日公告（它本来就不该被拦截）
-        if (el && el.id !== 'daily-greeting-modal') {
-            history.pushState({ modal: 'open' }, '');
-        }
-    };
-
-    // 监听返回事件
     window.addEventListener('popstate', function(e) {
-        // 查找当前屏幕上有没有打开的弹窗
-        const openModal = document.querySelector('.modal[style*="display: flex"], .modal[style*="display: block"], #survey-overlay');
-        if (openModal) {
-            // 有关闭弹窗的函数就调用，没有就直接隐藏
+        // 查找当前打开的弹窗
+        const openModals = document.querySelectorAll('.modal[style*="display: flex"], .modal[style*="display: block"], #survey-overlay');
+        
+        if (openModals.length > 0) {
+            // 1. 如果有弹窗，关闭最上面的那个
+            const topModal = openModals[openModals.length - 1];
             if (typeof hideModal === 'function') {
-                hideModal(openModal);
+                hideModal(topModal);
             } else {
-                openModal.style.display = 'none';
+                topModal.style.display = 'none';
             }
-            // 再次推入历史记录，防止用户再滑一次就直接退出网页
+            // 再次推入历史，防止再滑直接退出网页
             history.pushState({ modal: 'open' }, '');
+        } else {
+            // 2. 如果没有弹窗，强行把网页留在原地，绝对不让他大退
+            history.pushState({ page: 'main' }, '');
+            if (typeof showNotification === 'function') {
+                showNotification('已拦截返回，防止页面大退', 'info', 1500);
+            }
         }
     });
 })();
