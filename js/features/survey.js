@@ -1,28 +1,51 @@
 /* ============================================================
-   survey.js - 问卷互动系统
+   survey.js - 问卷互动系统（彻底修复版）
    ============================================================ */
 (function() {
     'use strict';
 
-    // 存储数据
     let surveyHistory = [];
     let surveySettings = { reactionMin: 3, reactionMax: 8 };
 
-    // 加载数据
     function loadSurveyData() {
         if (typeof localforage === 'undefined') return;
         localforage.getItem('surveyHistory').then(h => { if (Array.isArray(h)) surveyHistory = h; });
         localforage.getItem('surveySettings').then(s => { if (s) Object.assign(surveySettings, s); });
     }
 
-    // 保存数据
     function saveSurveyData() {
         if (typeof localforage === 'undefined') return;
         localforage.setItem('surveyHistory', surveyHistory);
         localforage.setItem('surveySettings', surveySettings);
     }
 
-    // 打开问卷弹窗
+    // 安全地把消息塞进聊天记录里（直接操作原有的 messages 数组）
+    function pushMessage(sender, text) {
+        try {
+            const msg = {
+                id: Date.now() + Math.random(),
+                sender: sender,
+                text: text,
+                timestamp: new Date(),
+                type: 'normal',
+                status: 'received'
+            };
+            if (typeof window.messages !== 'undefined' && Array.isArray(window.messages)) {
+                window.messages.push(msg);
+            } else if (typeof messages !== 'undefined' && Array.isArray(messages)) {
+                messages.push(msg);
+            } else {
+                return;
+            }
+            if (typeof window.renderMessages === 'function') {
+                window.renderMessages();
+            } else if (typeof renderMessages === 'function') {
+                renderMessages();
+            }
+            if (typeof window.throttledSaveData === 'function') window.throttledSaveData();
+        } catch(e) { console.warn('问卷消息写入失败', e); }
+    }
+
     window.openSurveyForPartner = function() {
         const old = document.getElementById('survey-overlay');
         if (old) old.remove();
@@ -71,44 +94,99 @@
             const finalOptions = [...opts, '字卡回复'];
             const record = { id: Date.now(), type: 'mine', question: q, options: finalOptions, answer: null };
 
-            // 同步到聊天
-            if (typeof window.addMessage === 'function') {
-                window.addMessage({ id: Date.now(), sender: 'system', text: `📄 我问了 Ta 一个问题：<b>${q}</b>`, timestamp: new Date(), type: 'system' });
-            }
+            pushMessage('user', `📄 [我发起了问卷] 问题：${q}`);
             surveyHistory.push(record);
             saveSurveyData();
             overlay.remove();
 
-            // 模拟对方回答
             setTimeout(() => {
                 const answer = finalOptions[Math.floor(Math.random() * finalOptions.length)];
                 record.answer = answer;
                 saveSurveyData();
-                if (typeof window.addMessage === 'function') {
-                    if (answer === '字卡回复') {
-                        window.addMessage({ id: Date.now(), sender: settings.partnerName||'Ta', text: '【字卡回复】', timestamp: new Date(), type: 'normal' });
-                        if (typeof window.simulateReply === 'function') window.simulateReply();
-                    } else {
-                        window.addMessage({ id: Date.now(), sender: settings.partnerName||'Ta', text: `选择了：<b>${answer}</b>`, timestamp: new Date(), type: 'normal' });
-                    }
+                if (answer === '字卡回复') {
+                    pushMessage(settings.partnerName||'Ta', `📄 [Ta回答问卷] 选择了字卡回复`);
+                    if (typeof window.simulateReply === 'function') window.simulateReply();
+                } else {
+                    pushMessage(settings.partnerName||'Ta', `📄 [Ta回答问卷] 选择了：${answer}`);
                 }
-            }, (surveySettings.reactionMin + Math.random() * (surveySettings.reactionMax - surveySettings.reactionMin)) * 1000);
+          }, 180000);
         };
     };
 
     function renderHistory(container) {
         const mine = surveyHistory.filter(r => r.type === 'mine').reverse();
+        const partner = surveyHistory.filter(r => r.type === 'partner').reverse();
         container.innerHTML = `
-            <div style="font-size:12px;font-weight:600;color:var(--accent-color);margin-bottom:8px;">📤 我问 Ta 的</div>
-            ${mine.length ? mine.map(r => `
-                <div style="padding:10px;border:1px solid var(--border-color);border-radius:10px;margin-bottom:8px;background:var(--primary-bg);font-size:12px;">
-                    <div style="font-weight:600;">${r.question}</div>
-                    <div style="color:var(--text-secondary);margin-top:4px;">选项：${r.options.join(' / ')}</div>
-                    ${r.answer ? `<div style="color:var(--accent-color);margin-top:4px;">答：${r.answer}</div>` : ''}
-                </div>
-            `).join('') : '<div style="font-size:12px;color:var(--text-secondary);text-align:center;padding:20px;">暂无记录</div>'}
+            <div style="margin-bottom:16px;">
+                <div style="font-size:12px;font-weight:600;color:var(--accent-color);margin-bottom:8px;">📤 我问 Ta 的</div>
+                ${mine.length ? mine.map(r => `
+                    <div style="padding:10px;border:1px solid var(--border-color);border-radius:10px;margin-bottom:8px;background:var(--primary-bg);font-size:12px;">
+                        <div style="font-weight:600;">${r.question}</div>
+                        <div style="color:var(--text-secondary);margin-top:4px;">选项：${r.options.join(' / ')}</div>
+                        ${r.answer ? `<div style="color:var(--accent-color);margin-top:4px;">答：${r.answer}</div>` : ''}
+                    </div>
+                `).join('') : '<div style="font-size:12px;color:var(--text-secondary);text-align:center;padding:10px;">暂无记录</div>'}
+            </div>
+            <div>
+                <div style="font-size:12px;font-weight:600;color:var(--accent-color);margin-bottom:8px;">📥 Ta 问我的</div>
+                ${partner.length ? partner.map(r => `
+                    <div style="padding:10px;border:1px solid var(--border-color);border-radius:10px;margin-bottom:8px;background:var(--primary-bg);font-size:12px;">
+                        <div style="font-weight:600;">${r.question}</div>
+                        <div style="color:var(--text-secondary);margin-top:4px;">选项：${r.options.join(' / ')}</div>
+                        ${r.answer ? `<div style="color:var(--accent-color);margin-top:4px;">我答：${r.answer}</div>` : ''}
+                    </div>
+                `).join('') : '<div style="font-size:12px;color:var(--text-secondary);text-align:center;padding:10px;">暂无记录</div>'}
+            </div>
         `;
     }
 
+    window.triggerPartnerSurvey = function() {
+        const questions = ["今天想我了吗？", "今晚吃什么？", "周末去哪里玩？", "喜欢我吗？"];
+        const optionsPool = [["想了", "没想", "字卡回复"], ["火锅", "烤肉", "随便", "字卡回复"], ["家里蹲", "出去玩", "字卡回复"], ["喜欢", "不喜欢", "字卡回复"]];
+        const idx = Math.floor(Math.random() * questions.length);
+        const q = questions[idx];
+        const opts = optionsPool[idx];
+        const record = { id: Date.now(), type: 'partner', question: q, options: opts, answer: null };
+
+        pushMessage(settings.partnerName||'Ta', `📄 [Ta向你发起了问卷] 问题：${q}`);
+        surveyHistory.push(record);
+        saveSurveyData();
+
+        const old = document.getElementById('survey-overlay');
+        if (old) old.remove();
+        const overlay = document.createElement('div');
+        overlay.id = 'survey-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.5);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;';
+        overlay.innerHTML = `
+            <div style="background:var(--secondary-bg);border-radius:20px;padding:24px;width:90%;max-width:400px;">
+                <div style="font-size:16px;font-weight:700;margin-bottom:16px;">📄 Ta 问你：${q}</div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${opts.map(opt => `<button class="partner-opt-btn" data-opt="${opt}" style="padding:12px;border:1.5px solid var(--border-color);border-radius:12px;background:var(--primary-bg);color:var(--text-primary);font-size:14px;cursor:pointer;">${opt}</button>`).join('')}
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        overlay.querySelectorAll('.partner-opt-btn').forEach(btn => {
+            btn.onclick = () => {
+                const answer = btn.getAttribute('data-opt');
+                record.answer = answer;
+                saveSurveyData();
+                overlay.remove();
+                if (answer === '字卡回复') {
+                    pushMessage('user', `📄 [我回答问卷] 选择了字卡回复`);
+                    if (typeof window.simulateReply === 'function') window.simulateReply();
+                } else {
+                    pushMessage('user', `📄 [我回答问卷] 选择了：${answer}`);
+                }
+            };
+        });
+    };
+
     window.initSurveyModule = loadSurveyData;
+
+    setInterval(() => {
+        if (Math.random() < 0.10) { // 10% 概率主动问你
+            window.triggerPartnerSurvey();
+        }
+    }, 30 * 60 * 1000); // 每 30 分钟检查一次
 })();
