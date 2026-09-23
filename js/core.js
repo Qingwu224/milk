@@ -1718,9 +1718,14 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                         status: 'received',
                         favorited: false,
                         note: null,
-                        replyTo: (i === 0 && recentUserMsgs.length > 0 && Math.random() < 0.3)
-                            ? (function(){ const m = recentUserMsgs[Math.floor(Math.random() * recentUserMsgs.length)]; return { id: m.id, text: m.text, sender: m.sender }; })()
-                            : null,
+                       replyTo: (i === 0 && Math.random() < 0.3) 
+    ? (function() {
+        const allRecent = messages.filter(m => m.sender !== null && m.type === 'normal').slice(-10);
+        if (allRecent.length === 0) return null;
+        const m = allRecent[Math.floor(Math.random() * allRecent.length)];
+        return { id: m.id, text: m.text, sender: m.sender };
+    })()
+    : null,
                         type: 'normal'
                     });
                     if (typeof window._sendPartnerNotification === 'function') {

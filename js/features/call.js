@@ -927,3 +927,79 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
 
     init();
 })();
+// ================= 通话后台保活与恢复（独立模块，不碰原有逻辑） =================
+(function() {
+    'use strict';
+    
+    const BACKUP_KEY = 'call_state_backup_v2';
+    
+    // 保存通话状态
+    function saveCallState() {
+        const callWindow = document.getElementById('call-window');
+        if (!callWindow || !callWindow.classList.contains('visible')) {
+            try { localStorage.removeItem(BACKUP_KEY); } catch(e) {}
+            return;
+        }
+        try {
+            const timerEl = document.getElementById('call-timer-display');
+            let elapsed = 0;
+            if (timerEl && timerEl.textContent && timerEl.textContent !== '连接中') {
+                const parts = timerEl.textContent.split(':').map(Number);
+                if (parts.length === 3) elapsed = parts[0]*3600 + parts[1]*60 + parts[2];
+                else if (parts.length === 2) elapsed = parts[0]*60 + parts[1];
+            }
+            localStorage.setItem(BACKUP_KEY, JSON.stringify({
+                active: true,
+                elapsed: elapsed,
+                timestamp: Date.now()
+            }));
+        } catch(e) {}
+    }
+    
+    // 页面重新加载后，尝试恢复通话
+    function restoreCall() {
+        let saved;
+        try { saved = localStorage.getItem(BACKUP_KEY); } catch(e) { return; }
+        if (!saved) return;
+        
+        let data;
+        try { data = JSON.parse(saved); } catch(e) { localStorage.removeItem(BACKUP_KEY); return; }
+        
+        if (!data.active || Date.now() - data.timestamp > 15 * 60 * 1000) {
+            localStorage.removeItem(BACKUP_KEY);
+            return;
+        }
+        
+        let attempts = 0;
+        const checkAndRestore = setInterval(function() {
+            attempts++;
+            if (window.callFeature && typeof window.callFeature.startCall === 'function') {
+                clearInterval(checkAndRestore);
+                try {
+                    window.callFeature.startCall(false);
+                    setTimeout(function() {
+                        const conn = document.getElementById('call-connecting-state');
+                        if (conn) conn.classList.remove('visible');
+                        const body = document.getElementById('call-window-body');
+                        if (body) body.style.display = '';
+                    }, 2500);
+                } catch(e) {}
+            }
+            if (attempts > 25) clearInterval(checkAndRestore);
+        }, 200);
+    }
+    
+    // 监听页面隐藏
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') saveCallState();
+    });
+    window.addEventListener('pagehide', saveCallState);
+    window.addEventListener('beforeunload', saveCallState);
+    
+    // 页面加载后延迟恢复
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { setTimeout(restoreCall, 2500); });
+    } else {
+        setTimeout(restoreCall, 2500);
+    }
+})();
