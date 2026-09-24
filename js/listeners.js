@@ -180,6 +180,13 @@ if (target.classList.contains('delete-btn')) {
                 if (typeof playSound === 'function') playSound('poke');
 
                 if (shouldSaveToLibrary) {
+                                        // 同时保存到自己这边的拍一拍库
+                    let myPokes = [];
+                    try { myPokes = JSON.parse(localStorage.getItem('myPokeLibrary') || '[]'); } catch(e) {}
+                    if (!myPokes.includes(pokeText)) {
+                        myPokes.unshift(pokeText);
+                        localStorage.setItem('myPokeLibrary', JSON.stringify(myPokes));
+                    }
                     try {
                         if (!Array.isArray(customPokes)) customPokes = [];
                         const exists = customPokes.some(r => String(r) === String(pokeText));
