@@ -2245,7 +2245,7 @@ function showModal(modalElement, focusElement = null) {
 
         const checkStatusChange = () => {
             if ((Date.now() - settings.lastStatusChange) / 36e5 >= settings.nextStatusChange) {
-                window._triggerStatusChange();
+                //window._triggerStatusChange();
             }
         };
 
