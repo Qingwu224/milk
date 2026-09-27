@@ -10,7 +10,8 @@
     let settings = {
         enabled: false,
         intervalMinutes: 1440, // 默认 1 天
-        sentenceCount: 5,      // 默认写 5 句
+        minSentenceCount: 4,   // 默认最少 4 句
+        maxSentenceCount: 8,   // 默认最多 8 句
         lastLetterTime: 0
     };
 
@@ -31,8 +32,14 @@
             ? customReplies.filter(function(r) { return r && String(r).trim(); }) : [];
         if (sourcePool.length === 0) return null;
 
-        const target = parseInt(settings.sentenceCount) || 5;
+        // 1. 在最少和最多之间随机取一个数字
+        const minCount = settings.minSentenceCount || 4;
+        const maxCount = settings.maxSentenceCount || 8;
+        const target = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
+        
+        // 2. 不能超过字卡库的总数
         const count = Math.min(target, sourcePool.length);
+        
         let content = '';
         for (let i = 0; i < count; i++) {
             const sentence = String(sourcePool[Math.floor(Math.random() * sourcePool.length)]).trim();
@@ -73,14 +80,12 @@
             settings.lastLetterTime = Date.now();
             saveSettings();
 
-            // 弹窗提示
             if (typeof window.showEnvelopeReplyPopup === 'function') {
                 window.showEnvelopeReplyPopup(letter);
             } else if (typeof showNotification === 'function') {
                 showNotification('Ta 给你写了一封信 💌，快去「信封投递」里看看吧', 'info', 5000);
             }
 
-            // 聊天记录提示
             if (typeof window.addMessage === 'function') {
                 window.addMessage({
                     id: Date.now(),
@@ -124,11 +129,16 @@
                     <span class="cs-slider-val" id="partner-letter-interval-value" style="font-size:12px;">1.0天</span>
                 </div>
                 <div class="cs-slider-row" style="border-bottom:none;padding:4px 0;">
-                    <span class="cs-slider-label" style="width:52px;font-size:12px;">句数</span>
-                    <input type="range" min="2" max="20" step="1" value="${settings.sentenceCount}" class="font-size-slider" id="partner-letter-count-slider" style="flex:1;margin:0 8px;">
-                    <span class="cs-slider-val" id="partner-letter-count-value" style="font-size:12px;">${settings.sentenceCount} 句</span>
+                    <span class="cs-slider-label" style="width:52px;font-size:12px;">最少</span>
+                    <input type="range" min="2" max="15" step="1" value="${settings.minSentenceCount}" class="font-size-slider" id="partner-letter-min-slider" style="flex:1;margin:0 8px;">
+                    <span class="cs-slider-val" id="partner-letter-min-value" style="font-size:12px;">${settings.minSentenceCount} 句</span>
                 </div>
-                <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">✦ 信件内容会从你的字卡库里随机抽取拼接</div>
+                <div class="cs-slider-row" style="border-bottom:none;padding:4px 0;">
+                    <span class="cs-slider-label" style="width:52px;font-size:12px;">最多</span>
+                    <input type="range" min="3" max="20" step="1" value="${settings.maxSentenceCount}" class="font-size-slider" id="partner-letter-max-slider" style="flex:1;margin:0 8px;">
+                    <span class="cs-slider-val" id="partner-letter-max-value" style="font-size:12px;">${settings.maxSentenceCount} 句</span>
+                </div>
+                <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">✦ 信件内容会从你的字卡库里随机抽取拼接，句数在“最少”和“最多”之间随机</div>
             </div>
         `;
         rhythmPanel.appendChild(card);
@@ -148,14 +158,29 @@
         document.getElementById('partner-letter-interval-slider').addEventListener('input', function(e) {
             settings.intervalMinutes = parseInt(e.target.value);
             saveSettings();
-            const valEl = document.getElementById('partner-letter-interval-value');
-            valEl.textContent = (settings.intervalMinutes / 1440).toFixed(1) + '天';
+            document.getElementById('partner-letter-interval-value').textContent = (settings.intervalMinutes / 1440).toFixed(1) + '天';
         });
 
-        document.getElementById('partner-letter-count-slider').addEventListener('input', function(e) {
-            settings.sentenceCount = parseInt(e.target.value);
+        document.getElementById('partner-letter-min-slider').addEventListener('input', function(e) {
+            settings.minSentenceCount = parseInt(e.target.value);
+            if (settings.minSentenceCount > settings.maxSentenceCount) {
+                settings.maxSentenceCount = settings.minSentenceCount;
+                document.getElementById('partner-letter-max-slider').value = settings.maxSentenceCount;
+                document.getElementById('partner-letter-max-value').textContent = settings.maxSentenceCount + ' 句';
+            }
             saveSettings();
-            document.getElementById('partner-letter-count-value').textContent = settings.sentenceCount + ' 句';
+            document.getElementById('partner-letter-min-value').textContent = settings.minSentenceCount + ' 句';
+        });
+
+        document.getElementById('partner-letter-max-slider').addEventListener('input', function(e) {
+            settings.maxSentenceCount = parseInt(e.target.value);
+            if (settings.maxSentenceCount < settings.minSentenceCount) {
+                settings.minSentenceCount = settings.maxSentenceCount;
+                document.getElementById('partner-letter-min-slider').value = settings.minSentenceCount;
+                document.getElementById('partner-letter-min-value').textContent = settings.minSentenceCount + ' 句';
+            }
+            saveSettings();
+            document.getElementById('partner-letter-max-value').textContent = settings.maxSentenceCount + ' 句';
         });
     }
 
@@ -164,14 +189,21 @@
         const control = document.getElementById('partner-letter-control');
         if (toggle) toggle.classList.toggle('active', settings.enabled);
         if (control) control.style.display = settings.enabled ? 'block' : 'none';
+        
         const intervalSlider = document.getElementById('partner-letter-interval-slider');
         if (intervalSlider) intervalSlider.value = settings.intervalMinutes;
         const valEl = document.getElementById('partner-letter-interval-value');
         if (valEl) valEl.textContent = (settings.intervalMinutes / 1440).toFixed(1) + '天';
-        const countSlider = document.getElementById('partner-letter-count-slider');
-        if (countSlider) countSlider.value = settings.sentenceCount;
-        const countEl = document.getElementById('partner-letter-count-value');
-        if (countEl) countEl.textContent = settings.sentenceCount + ' 句';
+
+        const minSlider = document.getElementById('partner-letter-min-slider');
+        if (minSlider) minSlider.value = settings.minSentenceCount;
+        const minEl = document.getElementById('partner-letter-min-value');
+        if (minEl) minEl.textContent = settings.minSentenceCount + ' 句';
+
+        const maxSlider = document.getElementById('partner-letter-max-slider');
+        if (maxSlider) maxSlider.value = settings.maxSentenceCount;
+        const maxEl = document.getElementById('partner-letter-max-value');
+        if (maxEl) maxEl.textContent = settings.maxSentenceCount + ' 句';
     }
 
     function init() {
