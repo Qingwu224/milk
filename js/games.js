@@ -1345,7 +1345,7 @@ function initComboMenu() {
     }
 
     function renderStickerLibrary() { renderMyStickerLibrary(); }
-    function renderUserPokeMenu() {
+      function renderUserPokeMenu() {
         contentArea.innerHTML = '';
 
         const wrapper = document.createElement('div');
@@ -1361,23 +1361,63 @@ function initComboMenu() {
         };
         wrapper.appendChild(customBtn);
 
-        const userPresets = [
-            "拍了拍对方的头",
-            "戳了戳对方的脸颊",
-            "抱住了对方",
-            "给对方比了个心",
-            "牵起了对方的手",
-            "看着对方发呆"
-        ];
+        let savedPokes = [];
+        try { savedPokes = JSON.parse(localStorage.getItem('myPokeLibrary') || '[]'); } catch(e) {}
 
-        const title = document.createElement('div');
-        title.style.fontSize = '12px';
-        title.style.color = 'var(--text-secondary)';
-        title.style.marginBottom = '5px';
-        title.innerText = '快捷动作';
-        wrapper.appendChild(title);
+        if (savedPokes.length > 0) {
+            const title = document.createElement('div');
+            title.style.cssText = 'font-size:12px;color:var(--text-secondary);margin:10px 0 5px;';
+            title.innerText = '我的自定义';
+            wrapper.appendChild(title);
 
-        userPresets.forEach(text => {
+            savedPokes.forEach((text, index) => {
+                const item = document.createElement('div');
+                item.className = 'poke-quick-item';
+                item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+
+                const textSpan = document.createElement('span');
+                textSpan.innerText = text;
+                textSpan.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+
+                const delBtn = document.createElement('span');
+                delBtn.innerHTML = '×';
+                delBtn.style.cssText = 'color:#ff4757;font-size:20px;font-weight:bold;cursor:pointer;padding:0 5px;line-height:1;';
+
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm('确定要删除这条自定义拍一拍吗？')) {
+                        savedPokes.splice(index, 1);
+                        localStorage.setItem('myPokeLibrary', JSON.stringify(savedPokes));
+                        renderUserPokeMenu();
+                    }
+                };
+
+                item.appendChild(textSpan);
+                item.appendChild(delBtn);
+
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    addMessage({
+                        id: Date.now(),
+                        text: _formatPokeText(`${settings.myName} ${text}`),
+                        timestamp: new Date(),
+                        type: 'system'
+                    });
+                    picker.classList.remove('active');
+                    setTimeout(simulateReply, 1500);
+                };
+
+                wrapper.appendChild(item);
+            });
+        }
+
+        const defaultPresets = ["拍了拍对方的头","戳了戳对方的脸颊","抱住了对方","给对方比了个心","牵起了对方的手","看着对方发呆"];
+        const title2 = document.createElement('div');
+        title2.style.cssText = 'font-size:12px;color:var(--text-secondary);margin:10px 0 5px;';
+        title2.innerText = '快捷动作';
+        wrapper.appendChild(title2);
+
+        defaultPresets.forEach(text => {
             const item = document.createElement('div');
             item.className = 'poke-quick-item';
             item.innerText = text;
@@ -1385,12 +1425,11 @@ function initComboMenu() {
                 e.stopPropagation();
                 addMessage({
                     id: Date.now(),
-                    text: _formatPokeText(`${settings.myName} ${text}`), 
+                    text: _formatPokeText(`${settings.myName} ${text}`),
                     timestamp: new Date(),
-                    type: 'system' 
+                    type: 'system'
                 });
                 picker.classList.remove('active');
-                
                 setTimeout(simulateReply, 1500);
             };
             wrapper.appendChild(item);

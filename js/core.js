@@ -1394,7 +1394,7 @@ const addMessage = (message) => {
                 if (cmd === '/测试状态更新' || cmd === '/teststatus') {
                     DOMElements.messageInput.value = '';
                     DOMElements.messageInput.style.height = '46px';
-                    if (typeof window._triggerStatusChange === 'function') window._triggerStatusChange();
+                    if (typeof window._triggerStatusChange === 'function') //window._triggerStatusChange();
                     if (typeof showNotification === 'function') showNotification('✦ 强制触发状态更新', 'info', 1800);
                     return;
                 }
@@ -1639,7 +1639,12 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                 return;
             }
 
-            const replyCount = Math.random() < 0.75 ? 1: (Math.random() < 0.95 ? 2: 3);
+            const randomVal = Math.random();   
+            let replyCount;
+            if (randomVal < 0.40) replyCount = 1;      // 40% 概率回复 1 条
+            else if (randomVal < 0.55) replyCount = 2; // 15% 概率回复 2 条
+            else if (randomVal < 0.60) replyCount = 3; // 5% 概率回复 3 条（保留原来的3条）
+            else replyCount = 0;                       // 剩下 40% 概率不回复 
             if (!customReplies || customReplies.length === 0) {
                 showNotification('回复库为空，请先到「自定义回复」中添加内容', 'info', 3500);
                 return;
@@ -1718,9 +1723,14 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                         status: 'received',
                         favorited: false,
                         note: null,
-                        replyTo: (i === 0 && recentUserMsgs.length > 0 && Math.random() < 0.3)
-                            ? (function(){ const m = recentUserMsgs[Math.floor(Math.random() * recentUserMsgs.length)]; return { id: m.id, text: m.text, sender: m.sender }; })()
-                            : null,
+                       replyTo: (i === 0 && Math.random() < 0.3) 
+    ? (function() {
+        const allRecent = messages.filter(m => m.sender !== null && m.type === 'normal').slice(-10);
+        if (allRecent.length === 0) return null;
+        const m = allRecent[Math.floor(Math.random() * allRecent.length)];
+        return { id: m.id, text: m.text, sender: m.sender };
+    })()
+    : null,
                         type: 'normal'
                     });
                     if (typeof window._sendPartnerNotification === 'function') {
@@ -2235,7 +2245,7 @@ function showModal(modalElement, focusElement = null) {
 
         const checkStatusChange = () => {
             if ((Date.now() - settings.lastStatusChange) / 36e5 >= settings.nextStatusChange) {
-                window._triggerStatusChange();
+                //window._triggerStatusChange();
             }
         };
 
